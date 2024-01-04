@@ -1,7 +1,5 @@
-Random Color Partey. <br>
+~~Conway's~~ Manuel's game of ~~life~~ drawing. <br><br>
 
-You can close it after the randomness ends. <br><br>
+For now, It allows drawing. <br>
 
-<img width="451" alt="Screenshot 2024-01-03 143257" src="https://github.com/suarezmanuel/Random/assets/146821569/f79b7ccd-5cdd-43f5-8750-87ff84ab79be">
-
-_"You stare at the randomness, searching for a pattern. And it stares at you back"_. <br>
+![image](https://github.com/suarezmanuel/GameOfLife/assets/146821569/0833733e-6f46-4da0-801e-c480d87ec811)

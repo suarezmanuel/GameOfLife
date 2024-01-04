@@ -1,0 +1,13 @@
+.DEFAULT_GOAL := ./target/main.out
+
+all:
+	clean target
+
+main.cpp:
+	g++ -I src/include -L src/lib -o ./target/main.out ./src/main.cpp -lmingw32 -lSDL2main -lSDL2
+
+run: main.cpp
+	./target/main.out
+
+clean:
+	rm -rf ./target/*.out

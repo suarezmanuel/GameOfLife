@@ -1,94 +1,47 @@
 #include <iostream>
+#include <vector>
 #include <SDL2/SDL.h>
 #include <windows.h>
-
+#include "bord.h"
 #define SCREENWIDTH 600
 #define SCREENHEIGHT 600
-#define BLOCKWIDTH 10
-#define BLOCKHEIGHT 10
+#define BLOCKWIDTH 30
+#define BLOCKHEIGHT 30
 #define BLOCKSONSCREENWIDTH SCREENWIDTH/BLOCKWIDTH 
 #define BLOCKSONSCREENHEIGHT SCREENHEIGHT/BLOCKHEIGHT
+#define INTSIZE sizeof(int)
 
-bool board [BLOCKSONSCREENWIDTH][BLOCKSONSCREENHEIGHT] = {0};
-bool boardcopy [BLOCKSONSCREENWIDTH][BLOCKSONSCREENHEIGHT] = {0};
-
-void moveCopyToBoard () {
-    for (int i = 0; i < BLOCKSONSCREENWIDTH; i++)
-    {
-        for (int j = 0; j < BLOCKSONSCREENHEIGHT; j++)
-        {
-            board[i][j] = boardcopy[i][j];
-        }
-    }
-}
-
-void moveBoardToCopy () {
-    for (int i = 0; i < BLOCKSONSCREENWIDTH; i++)
-    {
-        for (int j = 0; j < BLOCKSONSCREENHEIGHT; j++)
-        {
-            boardcopy[i][j] = board[i][j];
-        }
-    }
-}
-
+std::vector<Bord> Bords;
 /*
-    1.    <2 neighbors = die
-    2     2 or 3 neighbors = stay alive
-    3.    >3 neighbors = die
-    4.    3 neighbors = awaken forth! To life!
+    1. Separation
+    2. Alignment
+    3. Cohesion
 */
 void enactGameRules () {
-    for (int i = 0; i < BLOCKSONSCREENWIDTH; i++)
-    {
-        for (int j = 0; j < BLOCKSONSCREENHEIGHT; j++)
-        {
-            // I really hope bools count as 1's or 0's when ints.
-            int sum = 0;
-            if (i > 0) {
-                if (j < BLOCKSONSCREENHEIGHT) {sum += board[i-1][j+1];}
-                if (j > 0) {sum += board[i-1][j-1];}
-                sum += board[i-1][j];
-            }
-            
-            if (j < BLOCKSONSCREENHEIGHT) {sum += board[i][j+1];}
-            if (j > 0) {sum += board[i][j-1];}
+    std::cout << "rules are rules" << std::endl;
+}
 
-            if (i < BLOCKSONSCREENWIDTH) {
-                if (j < BLOCKSONSCREENHEIGHT) {sum += board[i+1][j+1];}
-                if (j > 0) {sum += board[i+1][j-1];}
-                sum += board[i+1][j];
-            }
-
-
-            if (sum < 2 || sum > 3) {
-                boardcopy[i][j] = 0;
-            }
-
-            if (sum == 3) {
-                boardcopy[i][j] = 1;
-            }
-        }
+void stepAll () {
+    for (Bord& b : Bords) {
+        b.step();
     }
 }
 
-void drawBoard (SDL_Renderer *&renderer) {
-    for (int i = 0; i < BLOCKSONSCREENWIDTH; i++)
-    {
-        for (int j = 0; j < BLOCKSONSCREENHEIGHT; j++)
-        {
-            SDL_Rect rectToFill; rectToFill.h = BLOCKHEIGHT; rectToFill.w = BLOCKWIDTH;
-            rectToFill.x = i*BLOCKWIDTH; rectToFill.y = j*BLOCKHEIGHT;  
+void drawPieces (SDL_Renderer *&renderer) {
+    for (Bord& b : Bords) {
+        b.drawBord(renderer);
+    }
+}
 
-            SDL_Color drawColor;
-            if (board[i][j]) {drawColor = {255,255,255,255};}
-            else {drawColor = {0,0,0,255};}
-
-            SDL_SetRenderDrawColor(renderer, drawColor.r, drawColor.g, drawColor.b, drawColor.a);
-            SDL_RenderFillRect(renderer, &rectToFill);
+void removeBordOnCursor (int (&mouse) [2]) {
+    for (Bord& b : Bords) {
+        if (b.isPointInBord(mouse)) {
+            // get iterator at b's index, in Bords
+            auto iterator = std::find(Bords.begin(), Bords.end(), b);
+            // remove b from Bords
+            Bords.erase(iterator);
         }
     }
-    
 }
 
 void drawGrid (SDL_Renderer *renderer, SDL_Color color) {
@@ -138,15 +91,21 @@ int main (int argc, char* argv[]) {
         std::cout << "Could not create window: " << SDL_GetError() << std::endl;
     }
 
-    bool running = true, lClick = false, rClick = false, pause = true;
-    int mouseX(0), mouseY(0);
+    bool running = true, lClick = false, rClick = false, pause = true, hold = false;
+    int mouse [2] = {0};
+    int vector [2] = {0};
     SDL_Event windowEvent;
     SDL_KeyboardEvent keyEvent;
 
     // a ptr to a const Uint8, has an array of all the states that now hold
     const Uint8 *state;
     int clickState;
-    float tickTime = 0.2;
+    float tickTime = 0.02;
+    int currX = 0, currY = 0;
+
+    enum clicks {
+        LCLICK=1, MCLICK, IDK, RCLICK
+    };
 
     while (running) {
 
@@ -156,57 +115,90 @@ int main (int argc, char* argv[]) {
                 case SDL_QUIT:
                     running = false;
                     break;
-                case SDL_MOUSEMOTION:
-                    SDL_GetMouseState(&mouseX, &mouseY);
-                    break;
                 case SDL_MOUSEBUTTONDOWN:
-                    clickState = SDL_GetMouseState(&mouseX, &mouseY);
-                    lClick = (clickState == 1);
-                    rClick = (clickState == 4);
+                    // when mouse is pressed, mouse pos is {0,0}
+                    if (!(rClick || lClick)) {
+                        clickState = SDL_GetMouseState(&(mouse[0]), &(mouse[1]));
+                        vector[0] = mouse[0]; vector[1] = mouse[1];
+                        hold = true;
+                    }
+
+                    if (hold) {
+                        SDL_GetMouseState(&currX, &currY);
+                        vector[0] = currX - mouse[0];
+                        vector[1] = currY - mouse[1];
+                    }
+
+                    // clickState holds which mouse button was pressed
+                    lClick = (clickState == LCLICK);
+                    rClick = (clickState == RCLICK);
                     break;
                 case SDL_MOUSEBUTTONUP:
-                    lClick = rClick = false;
+                    lClick = rClick = hold = false;
+                    break;
+                case SDL_KEYDOWN:
+                    state = SDL_GetKeyboardState(nullptr);
+                    if (state) {
+                        pause ^= state[SDL_SCANCODE_SPACE] || state[SDL_SCANCODE_P];
+                    }
+
+                    // pause is true if either space or p are pressed.
+                    // if pause was already pressed then stop
+                    // if it wasn't then start. This is represented by XOR
+
+                    // must wait atleast 0.1 seconds between pauses
+                    break;
+                case SDL_KEYUP:
+                    state = nullptr;
                     break;
             }
         }
-
-        state = SDL_GetKeyboardState(nullptr);
-
-        // pause is true if either space or p are pressed.
-        // if pause was already pressed then stop
-        // if it wasn't then start. This is represented by XOR
-        pause ^= state[SDL_SCANCODE_SPACE] || state[SDL_SCANCODE_P];
         
         
-        bool flag = false;
-        // draw big squares
 
+        // put pieces, theyll have a random
+        // favourably you can tune the speed vector, strech it and turn it 
         if (pause && (lClick || rClick)) {
 
-            int blockXIndex = ceil((abs(mouseX)+1)/BLOCKWIDTH);
-            int blockYIndex = ceil((abs(mouseY)+1)/BLOCKHEIGHT);
-            
-            if (lClick) {flag = true;}
-            if (rClick) {flag = false;}
+            enum coords {X, Y};
+            // std::cout << mouse[0] << " " << mouse[1] << std::endl;
 
-            board[blockXIndex][blockYIndex] = flag;
+            // create Bord
+            if (lClick) {
+                // same vector as last time
+                Bord bord(vector, mouse); 
+                Bords.push_back(bord);
+            }
+
+            if (rClick) {
+                removeBordOnCursor(mouse);
+            }
         }
 
         if (!pause) {
-            // we only need the copy if the game is running
-            moveBoardToCopy();
             // tickTime is in seconds, and Sleep gets MS
             Sleep(tickTime*1000);
-            // std::cout << "rules are rules" << std::endl;
             enactGameRules();
-            moveCopyToBoard();
+            stepAll();
         }
         
-        drawBoard(renderer);
+
         // draw grid on screen
         SDL_Color gridColor{70,70,40,255};
         drawGrid(renderer, gridColor);
+
+        drawPieces(renderer);
+
+        // SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+        // SDL_RenderDrawLine(renderer, mouse[0], mouse[1], currX, currY);
+
+        // it is not shown backwards, all changes to render are buffered
         SDL_RenderPresent(renderer);
+
+        if (!pause) {
+            SDL_SetRenderDrawColor(renderer,0,0,0,255);
+            SDL_RenderClear(renderer);
+        }
     }
     
     SDL_DestroyRenderer(renderer);
